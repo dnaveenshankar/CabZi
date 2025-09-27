@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['booking_id'])) {
     $stmt->bind_param("sdssi", $status, $final_cost, $pickup, $drop, $booking_id);
     $stmt->execute();
 
-    // Fetch booking details
+    // Fetch booking details for notification
     $user_stmt = $con->prepare("SELECT user_id, offline_customer_id FROM cab_bookings WHERE id = ?");
     $user_stmt->bind_param("i", $booking_id);
     $user_stmt->execute();
@@ -67,6 +67,7 @@ $bookings = $result->fetch_all(MYSQLI_ASSOC);
   <meta charset="UTF-8">
   <title>Owner Bookings - Cabzi</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <style>
     .profile-icon { cursor: pointer; }
@@ -96,6 +97,7 @@ $bookings = $result->fetch_all(MYSQLI_ASSOC);
             <th>Estimation</th>
             <th>Pickup/Drop</th>
             <th>Status</th>
+            <th>Payment</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -113,11 +115,24 @@ $bookings = $result->fetch_all(MYSQLI_ASSOC);
               <div><strong>Pickup:</strong> <?php echo htmlspecialchars($b['pickup_location']); ?></div>
               <div><strong>Drop:</strong> <?php echo htmlspecialchars($b['drop_location']); ?></div>
             </td>
-            <td><span class="badge bg-<?php
-              echo $b['status'] === 'Confirmed' ? 'success' :
-                   ($b['status'] === 'Cancelled' ? 'secondary' :
-                   ($b['status'] === 'Rejected' ? 'danger' : 'warning'));
-              ?>"><?php echo $b['status']; ?></span></td>
+            <td>
+              <span class="badge bg-<?php
+                echo $b['status'] === 'Confirmed' ? 'success' :
+                     ($b['status'] === 'Cancelled' ? 'secondary' :
+                     ($b['status'] === 'Rejected' ? 'danger' : 'warning'));
+              ?>"><?php echo $b['status']; ?></span>
+            </td>
+            <td>
+              <?php if($b['payment_status'] === 'Paid'): ?>
+                <span class="badge bg-success">Paid</span>
+                <button class="btn btn-sm btn-outline-info mt-1" data-bs-toggle="modal" data-bs-target="#paymentModal<?php echo $b['id']; ?>">View</button>
+              <?php elseif($b['status'] === 'Confirmed'): ?>
+                <span class="badge bg-warning">Unpaid</span>
+                <a href="pay_now.php" class="btn btn-sm btn-outline-success mt-1">Pay Now</a>
+              <?php else: ?>
+                <span class="badge bg-secondary">-</span>
+              <?php endif; ?>
+            </td>
             <td>
               <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $b['id']; ?>">Edit</button>
             </td>
@@ -180,6 +195,34 @@ $bookings = $result->fetch_all(MYSQLI_ASSOC);
                   <p><strong>Name:</strong> <?php echo htmlspecialchars($b['user_name']); ?></p>
                   <p><strong>Email:</strong> <?php echo htmlspecialchars($b['email']); ?></p>
                   <p><strong>Mobile:</strong> <?php echo htmlspecialchars($b['user_mobile']); ?></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment Modal -->
+          <div class="modal fade" id="paymentModal<?php echo $b['id']; ?>" tabindex="-1">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Payment Details - Booking #<?php echo $b['id']; ?></h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <?php if($b['payment_status'] === 'Paid'): ?>
+                    <p><strong>Status:</strong> <?php echo $b['payment_status']; ?></p>
+                    <p><strong>Amount:</strong> ₹<?php echo number_format($b['final_cost'] ?? $b['estimation'], 2); ?></p>
+                    <p><strong>Payment Mode:</strong> <?php echo $b['payment_mode']; ?></p>
+                    <p><strong>Payment Timestamp:</strong> <?php echo $b['payment_timestamp']; ?></p>
+                    <?php if(file_exists('upload+s/')): ?>
+                      <img src="uploads/pqr.ng" class="img-fluid mt-2" alt="Payment QR">
+                    <?php endif; ?>
+                  <?php else: ?>
+                    <p>No payment has been made yet.</p>
+                  <?php endif; ?>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
               </div>
             </div>

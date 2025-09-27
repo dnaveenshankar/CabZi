@@ -16,37 +16,37 @@ if (isset($_POST['cancel_booking']) && isset($_POST['booking_id'])) {
     $stmt = $con->prepare("UPDATE cab_bookings SET status = 'Cancelled' WHERE id = ? AND user_id = ?");
     $stmt->bind_param("ii", $booking_id, $user_id);
     $stmt->execute();
+
     // Fetch booking details to notify owner
-$infoStmt = $con->prepare("
-    SELECT cb.id, cb.car_id, cc.owner_id, cc.title
-    FROM cab_bookings cb
-    JOIN cab_cars cc ON cb.car_id = cc.id
-    WHERE cb.id = ? AND cb.user_id = ?
-");
-$infoStmt->bind_param("ii", $booking_id, $user_id);
-$infoStmt->execute();
-$bookingInfo = $infoStmt->get_result()->fetch_assoc();
+    $infoStmt = $con->prepare("
+        SELECT cb.id, cb.car_id, cc.owner_id, cc.title
+        FROM cab_bookings cb
+        JOIN cab_cars cc ON cb.car_id = cc.id
+        WHERE cb.id = ? AND cb.user_id = ?
+    ");
+    $infoStmt->bind_param("ii", $booking_id, $user_id);
+    $infoStmt->execute();
+    $bookingInfo = $infoStmt->get_result()->fetch_assoc();
 
-if ($bookingInfo) {
-    $owner_id = $bookingInfo['owner_id'];
-    $car_title = $bookingInfo['title'];
-    
-    $ownerMsg = "A booking for your car '{$car_title}' has been cancelled.";
-    $userMsg = "You have cancelled your booking for '{$car_title}'.";
+    if ($bookingInfo) {
+        $owner_id = $bookingInfo['owner_id'];
+        $car_title = $bookingInfo['title'];
+        
+        $ownerMsg = "A booking for your car '{$car_title}' has been cancelled.";
+        $userMsg = "You have cancelled your booking for '{$car_title}'.";
 
-    // Insert into owner notification
-    $notiOwner = $con->prepare("INSERT INTO notifications (owner_id, message) VALUES (?, ?)");
-    $notiOwner->bind_param("is", $owner_id, $ownerMsg);
-    $notiOwner->execute();
+        // Insert into owner notification
+        $notiOwner = $con->prepare("INSERT INTO notifications (owner_id, message) VALUES (?, ?)");
+        $notiOwner->bind_param("is", $owner_id, $ownerMsg);
+        $notiOwner->execute();
 
-    // Insert into user notification
-    $notiUser = $con->prepare("INSERT INTO user_notifications (user_id, message) VALUES (?, ?)");
-    $notiUser->bind_param("is", $user_id, $userMsg);
-    $notiUser->execute();
-}
+        // Insert into user notification
+        $notiUser = $con->prepare("INSERT INTO user_notifications (user_id, message) VALUES (?, ?)");
+        $notiUser->bind_param("is", $user_id, $userMsg);
+        $notiUser->execute();
+    }
 
-$message = "<div class='alert alert-warning text-center'>Booking has been cancelled and the owner has been notified.</div>";
-
+    $message = "<div class='alert alert-warning text-center'>Booking has been cancelled and the owner has been notified.</div>";
 }
 
 // Fetch bookings
@@ -76,23 +76,10 @@ $bookings = $result->fetch_all(MYSQLI_ASSOC);
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    .logo {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      object-fit: cover;
-    }
-    .clickable-card {
-      cursor: pointer;
-      transition: 0.3s;
-    }
-    .clickable-card:hover {
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    .card-img-top {
-      height: 150px;
-      object-fit: cover;
-    }
+    .logo { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; }
+    .clickable-card { cursor: pointer; transition: 0.3s; }
+    .clickable-card:hover { box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    .card-img-top { height: 150px; object-fit: cover; }
   </style>
 </head>
 <body>
@@ -114,9 +101,7 @@ $bookings = $result->fetch_all(MYSQLI_ASSOC);
             <img src="<?php echo htmlspecialchars($b['car_image']); ?>" class="card-img-top" alt="Car Image">
             <div class="card-body">
               <h5 class="card-title"><?php echo htmlspecialchars($b['title']); ?></h5>
-              <p class="card-text mb-1">
-                <?php echo htmlspecialchars($b['car_name']); ?> | <?php echo htmlspecialchars($b['model']); ?>
-              </p>
+              <p class="card-text mb-1"><?php echo htmlspecialchars($b['car_name']); ?> | <?php echo htmlspecialchars($b['model']); ?></p>
               <p class="mb-1"><strong>From:</strong> <?php echo $b['start_date']; ?> to <?php echo $b['end_date']; ?></p>
               <span class="badge bg-<?php 
                   echo $b['status'] === 'Confirmed' ? 'success' : 
@@ -152,18 +137,45 @@ $bookings = $result->fetch_all(MYSQLI_ASSOC);
                 <p><strong>Estimation:</strong> ₹<?php echo number_format($b['estimation'], 2); ?></p>
                 <p><strong>Final Cost:</strong> <?php echo $b['final_cost'] ? '₹' . number_format($b['final_cost'], 2) : 'Pending'; ?></p>
                 <p><strong>Status:</strong> <?php echo $b['status']; ?></p>
+                <p><strong>Payment Status:</strong> 
+                  <?php echo $b['payment_status'] ?? 'Unpaid'; ?>
+                </p>
                 <?php if ($b['remarks']): ?>
                   <p><strong>Remarks:</strong> <?php echo nl2br(htmlspecialchars($b['remarks'])); ?></p>
                 <?php endif; ?>
               </div>
               <div class="modal-footer">
                 <?php if ($b['status'] !== 'Cancelled'): ?>
-                  <form method="post">
-                    <input type="hidden" name="booking_id" value="<?php echo $b['id']; ?>">
-                    <button type="submit" name="cancel_booking" class="btn btn-danger">
-                      <i class="bi bi-x-circle"></i> Cancel Booking
-                    </button>
-                  </form>
+
+                  <?php if ($b['status'] === 'Confirmed' && ($b['payment_status'] === 'Unpaid' || !$b['payment_status'])): ?>
+                    <!-- Pay Now -->
+                    <form method="post" action="pay_now.php" class="me-2">
+                      <input type="hidden" name="booking_id" value="<?php echo $b['id']; ?>">
+                      <button type="submit" class="btn btn-success">
+                        <i class="bi bi-credit-card"></i> Pay Now
+                      </button>
+                    </form>
+                  <?php elseif ($b['status'] === 'Confirmed' && $b['payment_status'] === 'Paid'): ?>
+                    <!-- Paid badge + View Payment Details -->
+                    <span class="btn btn-success disabled me-2">Paid</span>
+                    <form method="get" action="view_payment.php">
+                      <input type="hidden" name="booking_id" value="<?php echo $b['id']; ?>">
+                      <button type="submit" class="btn btn-info">
+                        <i class="bi bi-eye"></i> View Payment Details
+                      </button>
+                    </form>
+                  <?php endif; ?>
+
+                  <!-- Cancel button only if unpaid -->
+                  <?php if ($b['payment_status'] !== 'Paid'): ?>
+                    <form method="post">
+                      <input type="hidden" name="booking_id" value="<?php echo $b['id']; ?>">
+                      <button type="submit" name="cancel_booking" class="btn btn-danger">
+                        <i class="bi bi-x-circle"></i> Cancel Booking
+                      </button>
+                    </form>
+                  <?php endif; ?>
+
                 <?php endif; ?>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
               </div>

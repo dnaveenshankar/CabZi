@@ -60,7 +60,13 @@ CREATE TABLE cab_bookings (
     estimation DECIMAL(10,2) NOT NULL,
     final_cost DECIMAL(10,2),
     remarks TEXT,
-    status VARCHAR(50) DEFAULT 'Pending', -- Confirmed / Cancelled / Completed / Rejected
+    status VARCHAR(50) DEFAULT 'Pending',
+    payment_status VARCHAR(50) DEFAULT 'Unpaid', 
+    payment_mode VARCHAR(50),                   
+    payment_timestamp TIMESTAMP NULL,           
+    transaction_id VARCHAR(100),                 
+    payment_remarks TEXT,                       
+    
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
